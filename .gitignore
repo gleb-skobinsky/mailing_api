@@ -1,0 +1,4 @@
+__pycache__/
+fabr_venv/
+celery.log
+launch.txt

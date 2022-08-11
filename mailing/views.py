@@ -1,26 +1,46 @@
 from .models import Mailing, Client, Message
 from .serializers import MailingSerializer, ClientSerializer
 from rest_framework.views import APIView
+from rest_framework.generics import GenericAPIView
 from rest_framework.response import Response
 from .celery_mailer import app, send
 from django.utils.timezone import now
 from django.db.models import Count
 from .sender_util import check_current_time
+from rest_framework.permissions import AllowAny
 
-class MailingApiView(APIView):
+
+class MailingApiView(GenericAPIView):
+    queryset = Mailing.objects.all()
+    serializer_class = MailingSerializer
+    permission_classes = (AllowAny,)
+    allowed_methods = ("GET", "POST", "PUT", "DELETE")
+
     def get(self, request):
         mailings_list = Mailing.objects.all().values()
-        return Response({'mailings': MailingSerializer(mailings_list, many=True).data})
+        return Response({"mailings": MailingSerializer(mailings_list, many=True).data})
 
     def post(self, request):
         if "stats" in request.data:
             if request.data["stats"] == "all":
-                message_groups = Message.objects.values('status').annotate(count=Count('id')).order_by()
+                message_groups = (
+                    Message.objects.values("status")
+                    .annotate(count=Count("id"))
+                    .order_by()
+                )
                 stats = [entry for entry in message_groups]
                 return Response(stats)
-            elif isinstance(request.data["stats"], int) or (isinstance(request.data["stats"], str) and request.data["stats"].isdigit()):
+            elif isinstance(request.data["stats"], int) or (
+                isinstance(request.data["stats"], str)
+                and request.data["stats"].isdigit()
+            ):
                 searched_id = int(request.data["stats"])
-                message_groups = Message.objects.filter(mailing_id=searched_id).values('status').annotate(count=Count('id')).order_by()
+                message_groups = (
+                    Message.objects.filter(mailing_id=searched_id)
+                    .values("status")
+                    .annotate(count=Count("id"))
+                    .order_by()
+                )
                 stats = [entry for entry in message_groups]
                 if len(stats) > 0:
                     return Response(stats)
@@ -31,14 +51,20 @@ class MailingApiView(APIView):
         serializer = MailingSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         mailing_to_send = serializer.save()
-        starter = check_current_time(mailing_to_send.time_start, mailing_to_send.time_end)
-        send.apply_async(kwargs={"mailing_id": mailing_to_send.pk,
-                                "text": mailing_to_send.message_text, 
-                                "code": mailing_to_send.mobile_code, 
-                                "tag": mailing_to_send.tag}, 
-                        eta=starter,
-                        expires=mailing_to_send.time_end)
-        return Response({'mailing': serializer.data})
+        starter = check_current_time(
+            mailing_to_send.time_start, mailing_to_send.time_end
+        )
+        send.apply_async(
+            kwargs={
+                "mailing_id": mailing_to_send.pk,
+                "text": mailing_to_send.message_text,
+                "code": mailing_to_send.mobile_code,
+                "tag": mailing_to_send.tag,
+            },
+            eta=starter,
+            expires=mailing_to_send.time_end,
+        )
+        return Response({"mailing": serializer.data})
 
     def put(self, request, *args, **kwargs):
         try:
@@ -49,7 +75,7 @@ class MailingApiView(APIView):
             instance = Mailing.objects.get(pk=id)
         except Mailing.DoesNotExist:
             return Response({"Error: object does not exist"})
-        
+
         serializer = MailingSerializer(data=request.data, instance=instance)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -67,17 +93,23 @@ class MailingApiView(APIView):
         delete_mailing.delete()
         return Response({"mailing": f"Deleted mailing {id}"})
 
-class ClientApiView(APIView):
+
+class ClientApiView(GenericAPIView):
+    queryset = Client.objects.all()
+    serializer_class = ClientSerializer
+    permission_classes = (AllowAny,)
+    allowed_methods = ("GET", "POST", "PUT", "DELETE")
+
     def get(self, request):
         clients_list = Client.objects.all().values()
-        return Response({'clients': ClientSerializer(clients_list, many=True).data})
+        return Response({"clients": ClientSerializer(clients_list, many=True).data})
 
     def post(self, request):
         serializer = ClientSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
-        return Response({'client': serializer.data})
+        return Response({"client": serializer.data})
 
     def put(self, request, *args, **kwargs):
         try:
@@ -88,7 +120,7 @@ class ClientApiView(APIView):
             instance = Client.objects.get(phone_number=initial_number)
         except Client.DoesNotExist:
             return Response({"Error: object does not exist"})
-        
+
         serializer = ClientSerializer(data=request.data, instance=instance)
         serializer.is_valid(raise_exception=True)
         serializer.save()
@@ -105,7 +137,3 @@ class ClientApiView(APIView):
 
         delete_client.delete()
         return Response({"client": f"Deleted client {pk}"})
-
-
-
-        

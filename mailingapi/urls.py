@@ -16,13 +16,20 @@ Including another URLconf
 from multiprocessing.connection import Client
 from django.contrib import admin
 from django.urls import path
-
+from rest_framework.schemas import get_schema_view
 from mailing.views import ClientApiView, MailingApiView
+from django.views.generic import TemplateView
+from drf_yasg.views import get_schema_view
+from drf_yasg import openapi
+from rest_framework import permissions
+from .yasg import urlpatterns as doc_urls
 
 urlpatterns = [
-    path('admin/', admin.site.urls),
-    path('api/v1/mailing/', MailingApiView.as_view()),
-    path('api/v1/client/', ClientApiView.as_view()),
-    path('api/v1/client/<int:pk>/', ClientApiView.as_view()),
-    path('api/v1/mailing/<int:pk>/', MailingApiView.as_view())
+    path("admin/", admin.site.urls),
+    path("api/v1/mailing/", MailingApiView.as_view()),
+    path("api/v1/client/", ClientApiView.as_view()),
+    path("api/v1/client/<int:pk>/", ClientApiView.as_view()),
+    path("api/v1/mailing/<int:pk>/", MailingApiView.as_view()),
 ]
+
+urlpatterns += doc_urls
